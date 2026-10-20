@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly Planner</title>
+<style>
+  :root {
+    --bg: #0b0d12; --panel: #12151c; --panel2: #181c26; --line: rgba(255,255,255,.08);
+    --ink: #e9ecf3; --muted: #8b93a4; --accent: #7c6cff; --good: #4cc38a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; color: var(--ink); background: var(--bg);
+    font: 15px/1.45 "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background-image:
+      radial-gradient(900px 260px at 85% -80px, rgba(76,195,138,.26), transparent 70%),
+      radial-gradient(700px 300px at 0% 0%, rgba(124,108,255,.12), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  .app { max-width: 1480px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  button { font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; transition: .15s; }
+  button:hover { border-color: rgba(255,255,255,.25); }
+  button.primary { background: rgba(124,108,255,.24); border-color: rgba(124,108,255,.6); }
+
+  /* top bar */
+  .top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; min-width: 0; }
+  .logo { width: 38px; height: 38px; flex: none; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, #7c6cff, #4cc38a); font-weight: 800; color: #0b0d12; }
+  .title { font: inherit; font-size: 18px; font-weight: 700; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; width: 280px; max-width: 100%; }
+  .title:hover { border-color: var(--line); }
+  .title:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+  .weekpick { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .weekpick input { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .weekpick input:focus { outline: none; border-color: var(--accent); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* score strip */
+  .strip { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; margin: 16px 0; padding: 16px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+  .strip .pct { font-size: 34px; font-weight: 800; line-height: 1; }
+  .lbl { color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+  .bar { height: 10px; background: rgba(255,255,255,.07); border-radius: 99px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, #7c6cff, #4cc38a); border-radius: 99px; transition: width .3s; }
+  .strip .meta { margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .grade { font-size: 38px; font-weight: 800; text-align: center; line-height: 1; color: var(--accent); }
+  @media (max-width: 700px) { .strip { grid-template-columns: 1fr auto; } .strip .mid { grid-column: 1 / -1; order: 3; } }
+
+  /* board */
+  .boardwrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+  .board { display: grid; grid-template-columns: 170px repeat(7, minmax(165px, 1fr)); min-width: 1330px; }
+  .cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 8px; min-width: 0; }
+  .corner, .rowhead { position: sticky; left: 0; z-index: 3; background: var(--panel); }
+  .corner { display: flex; align-items: center; color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; background: #1a1e29; }
+  .head { background: #1a1e29; border-top: 3px solid var(--c); padding: 8px 10px; }
+  .head .hd { display: flex; align-items: baseline; gap: 6px; }
+  .head .wd { font-weight: 700; }
+  .head .dt { color: var(--c); font-weight: 800; font-size: 17px; }
+  .head .tag { display: none; margin-left: auto; font-size: 9px; letter-spacing: .12em; padding: 2px 7px; border-radius: 99px; color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); }
+  .head.today .tag { display: block; }
+  .head.today { background: color-mix(in srgb, var(--c) 10%, #1a1e29); }
+  .dstat { font-size: 11px; color: var(--muted); margin: 2px 0 5px; }
+  .mini { height: 4px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .mini i { display: block; height: 100%; width: 0; background: var(--c); transition: width .3s; }
+
+  .rowhead { padding: 10px 10px 8px; }
+  .rl { display: flex; align-items: center; gap: 4px; }
+  .name { flex: 1; min-width: 0; font: inherit; font-weight: 700; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 3px 6px; }
+  .name:hover { border-color: var(--line); }
+  .name:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+  .rm { padding: 0; width: 24px; height: 24px; line-height: 1; flex: none; color: var(--muted); border-color: transparent; background: transparent; font-size: 16px; }
+  .rm:hover { color: #ff7a7a; border-color: rgba(255,122,122,.4); }
+  .rstat { color: var(--muted); font-size: 11px; margin: 2px 0 0 7px; }
+
+  .slot { background: color-mix(in srgb, var(--c) 3%, transparent); }
+  .task { display: flex; align-items: flex-start; gap: 7px; padding: 3px 0; }
+  .task textarea { flex: 1; min-width: 0; display: block; font: inherit; font-size: 13px; line-height: 1.35; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid transparent; resize: none; overflow: hidden; padding: 2px 0; }
+  .task textarea::placeholder { color: rgba(255,255,255,.22); }
+  .task textarea:focus { outline: none; border-bottom-color: var(--c); }
+  .task.done textarea { color: var(--muted); text-decoration: line-through; }
+  .x { opacity: 0; padding: 0; width: 20px; height: 20px; line-height: 1; flex: none; color: var(--muted); border-color: transparent; background: transparent; font-size: 15px; margin-top: 1px; }
+  .task:hover .x, .task:focus-within .x { opacity: 1; }
+  .x:hover { color: #ff7a7a; }
+  @media (hover: none) { .x { opacity: .6; } }
+  .plus { margin-top: 4px; width: 26px; height: 26px; padding: 0; border-radius: 50%; line-height: 1; font-size: 17px; color: var(--c); border: 1px dashed color-mix(in srgb, var(--c) 55%, transparent); background: transparent; }
+  .plus:hover { background: color-mix(in srgb, var(--c) 18%, transparent); }
+
+  input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 17px; height: 17px; flex: none; margin: 2px 0 0; cursor: pointer; border: 1.5px solid rgba(255,255,255,.28); border-radius: 5px; position: relative; transition: .12s; }
+  input[type=checkbox]:disabled { opacity: .3; cursor: default; }
+  input[type=checkbox]:checked { background: var(--c); border-color: var(--c); }
+  input[type=checkbox]:checked::after { content: ""; position: absolute; left: 4.5px; top: 1px; width: 4px; height: 8px; border: solid #0b0d12; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  .addrow { width: 100%; margin-top: 10px; padding: 11px; border-style: dashed; color: var(--muted); background: transparent; border-radius: 14px; }
+  .addrow:hover { color: var(--ink); background: var(--panel); }
+  .hint { color: var(--muted); font-size: 12px; margin: 10px 2px 0; }
+
+  /* panels */
+  .panels { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin-top: 16px; }
+  @media (max-width: 800px) { .panels { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card h3 { margin: 0 0 10px; font-size: 14px; }
+  .loadrow { display: flex; gap: 8px; }
+  .loadrow input { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+  .loadrow input:focus { outline: none; border-color: var(--accent); }
+  .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 6px 0 10px; max-height: 130px; overflow: auto; }
+  .small { color: var(--muted); font-size: 13px; }
+  .msg { color: var(--good); font-weight: 600; margin: 8px 0 0; }
+  .err { color: #ff7a7a; font-weight: 600; margin: 8px 0 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+
+  dialog { background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 420px; width: calc(100% - 32px); }
+  dialog::backdrop { background: rgba(0,0,0,.65); }
+  dialog h3 { margin: 0 0 6px; }
+  dialog .choices { display: grid; gap: 8px; margin-top: 16px; }
+
+  /* plan picker */
+  [hidden] { display: none !important; }
+  .plans { max-width: 1000px; margin: 0 auto; padding: 56px 16px 60px; text-align: center; }
+  .plans h1 { font-size: 36px; margin: 0 0 8px; }
+  .plans .lead { color: var(--muted); margin: 0 0 34px; }
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: left; }
+  @media (max-width: 800px) { .tiers { grid-template-columns: 1fr; } }
+  .tier { position: relative; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px 24px 24px; }
+  .tier.pop { border-color: rgba(124,108,255,.75); box-shadow: 0 0 0 1px rgba(124,108,255,.35), 0 24px 60px -24px rgba(124,108,255,.55); }
+  .tier .flag { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .12em; padding: 3px 12px; border-radius: 99px; background: var(--accent); color: #0b0d12; font-weight: 800; white-space: nowrap; }
+  .tier h2 { margin: 0; font-size: 20px; }
+  .tier .tag { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .tier .price { font-size: 42px; font-weight: 800; margin: 14px 0 0; line-height: 1.1; }
+  .tier .per { color: var(--muted); font-size: 13px; margin: 2px 0 18px; }
+  .tier ul { list-style: none; margin: 0 0 24px; padding: 0; flex: 1; }
+  .tier li { position: relative; padding: 5px 0 5px 24px; font-size: 14px; }
+  .tier li::before { content: "\2713"; position: absolute; left: 0; color: var(--good); font-weight: 700; }
+  .tier button { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; }
+  .plans .fine { color: var(--muted); font-size: 13px; margin-top: 26px; }
+  .planbadge { font-size: 12px; }
+
+  /* how-to */
+  #helpDlg { max-width: 480px; }
+  #helpDlg ol { margin: 12px 0 0; padding-left: 20px; }
+  #helpDlg li { margin: 0 0 9px; font-size: 14px; }
+  #helpDlg li b { color: var(--ink); }
+  #helpDlg li span { color: var(--muted); }
+  #helpDlg .choices { margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<main class="plans" id="plans">
+  <h1>Pick your plan</h1>
+  <p class="lead">Three plans, one price: nothing. Choose one to open your planner.</p>
+  <div class="tiers">
+    <section class="tier">
+      <h2>Free</h2>
+      <div class="tag">For people who like free</div>
+      <div class="price">$0</div>
+      <div class="per">per month, forever</div>
+      <ul>
+        <li>The full weekly planner</li>
+        <li>Unlimited subjects and tasks</li>
+        <li>Checkboxes and weekly scores</li>
+        <li>Save and load by code</li>
+      </ul>
+      <button data-plan="Free">Choose Free</button>
+    </section>
+    <section class="tier pop">
+      <div class="flag">MOST POPULAR</div>
+      <h2>Free Pro</h2>
+      <div class="tag">For people who like free, but extra</div>
+      <div class="price">$0.00</div>
+      <div class="per">per month, forever</div>
+      <ul>
+        <li>Everything in Free</li>
+        <li>A shiny Pro badge</li>
+        <li>Two whole decimal places of zero</li>
+        <li>Priority access to the same planner</li>
+      </ul>
+      <button class="primary" data-plan="Free Pro">Choose Free Pro</button>
+    </section>
+    <section class="tier">
+      <h2>Free Company</h2>
+      <div class="tag">For teams that like free, at scale</div>
+      <div class="price">$0.000</div>
+      <div class="per">per seat, per month, forever</div>
+      <ul>
+        <li>Everything in Free Pro</li>
+        <li>A distinguished Company badge</li>
+        <li>Three decimal places of zero</li>
+        <li>Every seat gets its own save code</li>
+      </ul>
+      <button data-plan="Free Company">Choose Free Company</button>
+    </section>
+  </div>
+  <p class="fine">No card needed. Nothing to cancel. You can switch plans any time.</p>
+</main>
+
+<div class="app" id="plannerApp" hidden>
+
+  <div class="top">
+    <div class="brand">
+      <div class="logo">W</div>
+      <input class="title" id="titleInput" maxlength="40" placeholder="Planner title" aria-label="Planner title">
+    </div>
+    <label class="weekpick">Week starts <input type="date" id="startInput"></label>
+    <div class="actions">
+      <button class="planbadge" id="planBadge" title="Change plan">Free plan</button>
+      <button id="helpBtn">How to use</button>
+      <button class="primary" id="saveBtn">Save &amp; get code</button>
+      <button id="finishBtn">Finish week</button>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div><div class="lbl" id="weekLabel">Week 1 score</div><div class="pct" id="pctText">0%</div></div>
+    <div class="mid">
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="meta" id="metaText">0 of 0 done</div>
+    </div>
+    <div><div class="lbl">Grade</div><div class="grade" id="grade">-</div></div>
+  </div>
+
+  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <button class="addrow" id="addRowBtn">+ Add subject</button>
+  <p class="hint">Click anything to edit it. Enter adds a new task, Shift+Enter makes a new line, and Backspace on an empty task removes it.</p>
+
+  <div class="panels">
+    <div class="card">
+      <h3>Your code</h3>
+      <div id="out"><div class="small">Press <b>Save &amp; get code</b> to get the code that brings this planner back.</div></div>
+    </div>
+    <div class="card">
+      <h3>Load by code</h3>
+      <div class="loadrow">
+        <input id="loadInput" placeholder="Type or paste your code" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button id="loadBtn">Load</button>
+      </div>
+      <div id="loadMsg"></div>
+      <div id="histWrap" hidden style="margin-top:16px">
+        <h3>Past weeks</h3>
+        <table><thead><tr><th>Week</th><th>Dates</th><th>Score</th><th>Grade</th></tr></thead><tbody id="histBody"></tbody></table>
+        <p class="small" id="avgText"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="helpDlg">
+  <h3>How to use your planner</h3>
+  <ol>
+    <li><b>Add tasks.</b> <span>Click a box under any day and type. Press Enter or the + button for another task, and Shift+Enter for a new line.</span></li>
+    <li><b>Check them off.</b> <span>Tick the box next to a task when it's done. The &times; (or Backspace on an empty task) removes it.</span></li>
+    <li><b>Set up your subjects.</b> <span>Click a subject name to rename it, use + Add subject for more rows, and pick your first date in "Week starts".</span></li>
+    <li><b>Watch your score.</b> <span>Every day and subject shows its progress, and the week gets a percentage and a grade (A 90+, B 80+, C 70+, D 60+).</span></li>
+    <li><b>Save your progress.</b> <span>Press Save &amp; get code. The long code works on any device and the short one only in this browser. Paste either into Load by code to come back.</span></li>
+    <li><b>Finish the week.</b> <span>Press Finish week to lock in your score and move the dates forward 7 days. You get a fresh code for the new week.</span></li>
+  </ol>
+  <div class="choices"><button class="primary" id="helpClose">Got it</button></div>
+</dialog>
+
+<dialog id="finishDlg">
+  <h3>Finish this week?</h3>
+  <div class="small" id="finishInfo"></div>
+  <div class="choices">
+    <button class="primary" data-mode="fresh">Start a fresh week (clear tasks)</button>
+    <button data-mode="keep">Keep my tasks, uncheck them</button>
+    <button data-mode="cancel">Cancel</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  /*PURE-START*/
+  var DAYS = 7;
+  var FS = "\u001c", GS = "\u001d", RS = "\u001e", US = "\u001f";
+  function two(n) { return ("0" + n).slice(-2); }
+  function fmtDate(d) { return d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()); }
+  function parseDate(s) { return new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)); }
+  function clean(t) { return String(t).replace(/[\u0001-\u0008\u001c-\u001f]/g, " "); }
+  function newTask() { return { t: "", c: false }; }
+  function newRow(name) {
+    var cells = [];
+    for (var d = 0; d < DAYS; d++) cells.push([newTask()]);
+    return { name: name, cells: cells };
+  }
+
+  function serialize(s) {
+    var rows = s.rows.map(function (r) {
+      var cells = r.cells.map(function (cell) {
+        return cell.map(function (t) { return (t.c ? "1" : "0") + clean(t.t); }).join(FS);
+      });
+      return [clean(r.name)].concat(cells).join(US);
+    }).join(RS);
+    var hist = s.history.map(function (h) { return h.s + "." + h.p; }).join(",");
+    return [clean(s.title), fmtDate(s.start), hist, rows].join(GS);
+  }
+  function deserialize(str) {
+    var g = str.split(GS);
+    if (g.length !== 4 || g[1].length !== 8) throw new Error("bad format");
+    var rows = g[3].split(RS).map(function (r) {
+      var f = r.split(US);
+      if (f.length !== DAYS + 1) throw new Error("bad row");
+      return {
+        name: f[0],
+        cells: f.slice(1).map(function (c) {
+          return c.split(FS).map(function (t) { return { c: t.charAt(0) === "1", t: t.slice(1) }; });
+        })
+      };
+    });
+    var hist = g[2] ? g[2].split(",").map(function (x) { var p = x.split("."); return { s: p[0], p: +p[1] }; }) : [];
+    return { title: g[0], start: parseDate(g[1]), history: hist, rows: rows };
+  }
+
+  async function pipeBytes(bytes, stream) {
+    var w = stream.writable.getWriter();
+    w.write(bytes).catch(function () {});
+    w.close().catch(function () {});
+    var buf = await new Response(stream.readable).arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  /* code alphabet: every printable keyboard character except space (94 of them) */
+  var ALPHA = "";
+  for (var ac = 33; ac <= 126; ac++) ALPHA += String.fromCharCode(ac);
+  function toBase(n) {
+    var out = [];
+    while (n > 0n) { out.push(ALPHA.charAt(Number(n % 94n))); n = n / 94n; }
+    return out.reverse().join("");
+  }
+  function fromBase(s) {
+    var n = 0n;
+    for (var i = 0; i < s.length; i++) {
+      var k = ALPHA.indexOf(s.charAt(i));
+      if (k < 0) throw new Error("character");
+      n = n * 94n + BigInt(k);
+    }
+    return n;
+  }
+  async function toCode(str) {
+    var raw = new TextEncoder().encode(str), flag = 1, data = raw;
+    if (typeof CompressionStream !== "undefined") {
+      try {
+        var c = await pipeBytes(raw, new CompressionStream("deflate-raw"));
+        if (c.length < raw.length) { flag = 2; data = c; }
+      } catch (e) {}
+    }
+    var hex = "01" + two(flag);
+    for (var i = 0; i < data.length; i++) hex += ("0" + data[i].toString(16)).slice(-2);
+    var n = BigInt("0x" + hex);
+    var m = Number(n % 8836n);
+    return toBase(n) + ALPHA.charAt(Math.floor(m / 94)) + ALPHA.charAt(m % 94);
+  }
+  async function fromCode(code) {
+    if (code.length < 4) throw new Error("short");
+    var body = code.slice(0, -2), chk = code.slice(-2), n = fromBase(body);
+    var m = Number(n % 8836n);
+    if (ALPHA.charAt(Math.floor(m / 94)) + ALPHA.charAt(m % 94) !== chk) throw new Error("checksum");
+    var hex = n.toString(16).slice(1);
+    if (hex.length % 2) throw new Error("length");
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    var flag = bytes[0], data = bytes.slice(1);
+    if (flag === 2) {
+      if (typeof DecompressionStream === "undefined") throw new Error("nodecompress");
+      data = await pipeBytes(data, new DecompressionStream("deflate-raw"));
+    } else if (flag !== 1) throw new Error("flag");
+    return new TextDecoder().decode(data);
+  }
+  /*PURE-END*/
+
+  var WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var COLORS = ["#8b7bff", "#5b9bff", "#ff6fa5", "#4cc38a", "#ffa24c", "#2ec4d6", "#e6c84a"];
+
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function mondayOf(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)); }
+  function isoDate(d) { return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()); }
+  function fmtShort(d) { return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+  function gradeFor(p) { return p >= 90 ? "A" : p >= 80 ? "B" : p >= 70 ? "C" : p >= 60 ? "D" : "F"; }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  var state = freshState();
+  function freshState() {
+    return {
+      title: "My Weekly Planner",
+      start: mondayOf(new Date()),
+      rows: [newRow("Subject 1"), newRow("Subject 2"), newRow("Subject 3")],
+      history: []
+    };
+  }
+
+  /* ---------- stats ---------- */
+  function tally(tasks) {
+    var f = 0, dn = 0;
+    tasks.forEach(function (t) { if (t.t.trim()) { f++; if (t.c) dn++; } });
+    return { f: f, d: dn };
+  }
+  function pctOf(done, filled) { return filled ? Math.round(done / filled * 100) : 0; }
+  function dayStats(d) {
+    var f = 0, dn = 0;
+    state.rows.forEach(function (r) { var x = tally(r.cells[d]); f += x.f; dn += x.d; });
+    return { filled: f, done: dn, pct: pctOf(dn, f) };
+  }
+  function rowStats(r) {
+    var f = 0, dn = 0;
+    state.rows[r].cells.forEach(function (c) { var x = tally(c); f += x.f; dn += x.d; });
+    return { filled: f, done: dn, pct: pctOf(dn, f) };
+  }
+  function weekStats() {
+    var f = 0, dn = 0;
+    for (var d = 0; d < DAYS; d++) { var s = dayStats(d); f += s.filled; dn += s.done; }
+    return { filled: f, done: dn, pct: pctOf(dn, f) };
+  }
+
+  /* ---------- board ---------- */
+  var boardEl = document.getElementById("board");
+  var hdr = [], rowStatEls = [];
+
+  function autosize(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }
+
+  function updateStats() {
+    for (var d = 0; d < DAYS; d++) {
+      var s = dayStats(d);
+      hdr[d].txt.textContent = s.done + "/" + s.filled + " done";
+      hdr[d].fill.style.width = s.pct + "%";
+    }
+    for (var r = 0; r < state.rows.length; r++) {
+      var rs = rowStats(r);
+      rowStatEls[r].textContent = rs.filled ? rs.done + "/" + rs.filled + " done · " + rs.pct + "%" : "no tasks yet";
+    }
+    var w = weekStats();
+    document.getElementById("pctText").textContent = w.pct + "%";
+    document.getElementById("barFill").style.width = w.pct + "%";
+    document.getElementById("metaText").textContent = w.done + " of " + w.filled + " done this week";
+    document.getElementById("grade").textContent = w.filled ? gradeFor(w.pct) : "-";
+    document.getElementById("weekLabel").textContent = "Week " + (state.history.length + 1) + " score";
+  }
+
+  function addTask(r, d, after) {
+    state.rows[r].cells[d].splice(after + 1, 0, newTask());
+    renderBoard({ r: r, d: d, i: after + 1 });
+  }
+  function removeTask(r, d, i) {
+    var cell = state.rows[r].cells[d];
+    if (cell.length > 1) {
+      cell.splice(i, 1);
+      renderBoard({ r: r, d: d, i: Math.max(0, i - 1) });
+    } else {
+      cell[0] = newTask();
+      renderBoard({ r: r, d: d, i: 0 });
+    }
+  }
+  function addRow() {
+    state.rows.push(newRow("Subject " + (state.rows.length + 1)));
+    renderBoard({ name: state.rows.length - 1 });
+  }
+  function removeRow(r) {
+    if (state.rows.length === 1) { alert("Keep at least one subject row."); return; }
+    var row = state.rows[r];
+    var hasText = row.cells.some(function (c) { return c.some(function (t) { return t.t.trim(); }); });
+    if (hasText && !confirm('Remove "' + (row.name || "this subject") + '" and all its tasks?')) return;
+    state.rows.splice(r, 1);
+    renderBoard();
+  }
+
+  function renderBoard(focus) {
+    boardEl.innerHTML = "";
+    hdr = []; rowStatEls = [];
+    var taskEls = [], nameEls = [];
+    var todayKey = fmtDate(new Date());
+
+    boardEl.appendChild(el("div", "cell corner", "Subject / Date"));
+    for (var d = 0; d < DAYS; d++) {
+      var date = addDays(state.start, d);
+      var h = el("div", "cell head" + (fmtDate(date) === todayKey ? " today" : ""));
+      h.style.setProperty("--c", COLORS[d]);
+      var top = el("div", "hd");
+      top.appendChild(el("span", "wd", WD[date.getDay()]));
+      top.appendChild(el("span", "dt", (date.getMonth() + 1) + "/" + date.getDate()));
+      top.appendChild(el("span", "tag", "TODAY"));
+      var txt = el("div", "dstat", "0/0 done");
+      var bar = el("div", "mini"), fill = el("i");
+      bar.appendChild(fill);
+      h.appendChild(top); h.appendChild(txt); h.appendChild(bar);
+      boardEl.appendChild(h);
+      hdr.push({ txt: txt, fill: fill });
+    }
+
+    state.rows.forEach(function (row, r) {
+      var rh = el("div", "cell rowhead");
+      var nm = el("input", "name");
+      nm.type = "text"; nm.value = row.name; nm.placeholder = "Subject"; nm.maxLength = 40;
+      nm.setAttribute("aria-label", "Subject name");
+      nm.addEventListener("input", function () { row.name = nm.value; });
+      var rm = el("button", "rm", "×");
+      rm.title = "Remove this subject";
+      rm.addEventListener("click", function () { removeRow(r); });
+      var line = el("div", "rl");
+      line.appendChild(nm); line.appendChild(rm);
+      var rs = el("div", "rstat");
+      rh.appendChild(line); rh.appendChild(rs);
+      boardEl.appendChild(rh);
+      rowStatEls.push(rs); nameEls.push(nm);
+      taskEls[r] = [];
+
+      for (var d = 0; d < DAYS; d++) (function (d) {
+        var cell = el("div", "cell slot");
+        cell.style.setProperty("--c", COLORS[d]);
+        var list = el("div", "tasks");
+        taskEls[r][d] = [];
+        row.cells[d].forEach(function (task, i) {
+          var tl = el("div", "task" + (task.c ? " done" : ""));
+          var cb = el("input"); cb.type = "checkbox"; cb.checked = task.c; cb.disabled = !task.t.trim();
+          cb.setAttribute("aria-label", "Done");
+          var ta = el("textarea"); ta.rows = 1; ta.value = task.t; ta.maxLength = 300; ta.placeholder = "Add a task...";
+          var x = el("button", "x", "×"); x.title = "Remove task";
+          cb.addEventListener("change", function () {
+            task.c = cb.checked;
+            tl.classList.toggle("done", task.c);
+            updateStats();
+          });
+          ta.addEventListener("input", function () {
+            task.t = ta.value;
+            var has = !!ta.value.trim();
+            if (!has) { task.c = false; cb.checked = false; tl.classList.remove("done"); }
+            cb.disabled = !has;
+            autosize(ta);
+            updateStats();
+          });
+          ta.addEventListener("keydown", function (e) {
+            if (e.isComposing || e.keyCode === 229) return;
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (ta.value.trim()) addTask(r, d, i);
+            } else if (e.key === "Backspace" && ta.value === "" && row.cells[d].length > 1) {
+              e.preventDefault();
+              removeTask(r, d, i);
+            }
+          });
+          x.addEventListener("click", function () { removeTask(r, d, i); });
+          tl.appendChild(cb); tl.appendChild(ta); tl.appendChild(x);
+          list.appendChild(tl);
+          taskEls[r][d].push(ta);
+        });
+        var plus = el("button", "plus", "+");
+        plus.title = "Add another task";
+        plus.addEventListener("click", function () { addTask(r, d, row.cells[d].length - 1); });
+        cell.appendChild(list); cell.appendChild(plus);
+        boardEl.appendChild(cell);
+      })(d);
+    });
+
+    taskEls.forEach(function (rowEls) { rowEls.forEach(function (cellEls) { cellEls.forEach(autosize); }); });
+    updateStats();
+
+    if (focus) {
+      if (focus.name != null) { nameEls[focus.name].focus(); nameEls[focus.name].select(); }
+      else if (taskEls[focus.r] && taskEls[focus.r][focus.d] && taskEls[focus.r][focus.d][focus.i]) {
+        taskEls[focus.r][focus.d][focus.i].focus();
+      }
+    }
+  }
+
+  window.addEventListener("resize", function () {
+    boardEl.querySelectorAll("textarea").forEach(autosize);
+  });
+
+  /* ---------- history ---------- */
+  function renderHistory() {
+    var wrap = document.getElementById("histWrap"), body = document.getElementById("histBody");
+    body.innerHTML = "";
+    wrap.hidden = state.history.length === 0;
+    if (!state.history.length) return;
+    var sum = 0;
+    state.history.forEach(function (h, i) {
+      sum += h.p;
+      var ws = parseDate(h.s);
+      var tr = document.createElement("tr");
+      [i + 1, fmtShort(ws) + " - " + fmtShort(addDays(ws, 6)), h.p + "%", gradeFor(h.p)].forEach(function (v) {
+        tr.appendChild(el("td", null, v));
+      });
+      body.appendChild(tr);
+    });
+    var avg = Math.round(sum / state.history.length);
+    document.getElementById("avgText").textContent = "Average: " + avg + "% (" + gradeFor(avg) + ")";
+  }
+
+  /* ---------- inputs ---------- */
+  var titleInput = document.getElementById("titleInput");
+  var startInput = document.getElementById("startInput");
+  function syncInputs() { titleInput.value = state.title; startInput.value = isoDate(state.start); }
+  titleInput.addEventListener("input", function () { state.title = titleInput.value; });
+  startInput.addEventListener("change", function () {
+    if (!startInput.value) return;
+    var p = startInput.value.split("-");
+    state.start = new Date(+p[0], +p[1] - 1, +p[2]);
+    renderBoard();
+  });
+  document.getElementById("addRowBtn").addEventListener("click", addRow);
+
+  /* ---------- codes ---------- */
+  var outEl = document.getElementById("out");
+  function shortKey(c) { return "weeklyPlanner:" + c; }
+  function makeShortCode(payload) {
+    try {
+      var code;
+      do { code = String(Math.floor(100000 + Math.random() * 900000)); } while (localStorage.getItem(shortKey(code)));
+      localStorage.setItem(shortKey(code), payload);
+      return code;
+    } catch (e) { return null; }
+  }
+  async function showCodes(title, payload, extraPayload) {
+    outEl.innerHTML = "";
+    outEl.appendChild(el("div", "small", "Making your code..."));
+    try {
+      var longCode = await toCode(payload);
+      var extraCode = extraPayload ? await toCode(extraPayload) : null;
+      var shortCode = makeShortCode(payload);
+      outEl.innerHTML = "";
+      outEl.appendChild(el("p", "msg", title));
+      if (shortCode) {
+        outEl.appendChild(el("div", "small", "Short code (only works in this browser):"));
+        outEl.appendChild(el("div", "code", shortCode));
+      }
+      outEl.appendChild(el("div", "small", "Long code, " + longCode.length + " characters (works on any device):"));
+      outEl.appendChild(el("div", "code", longCode));
+      var copy = el("button", null, "Copy long code");
+      copy.addEventListener("click", function () {
+        var done = function () { copy.textContent = "Copied!"; setTimeout(function () { copy.textContent = "Copy long code"; }, 1500); };
+        if (navigator.clipboard) navigator.clipboard.writeText(longCode).then(done, function () {});
+      });
+      outEl.appendChild(copy);
+      if (extraCode) {
+        var m = el("div", "small", "Code for the finished week (opens it as you left it):");
+        m.style.marginTop = "14px";
+        outEl.appendChild(m);
+        outEl.appendChild(el("div", "code", extraCode));
+      }
+    } catch (e) {
+      outEl.innerHTML = "";
+      outEl.appendChild(el("p", "err", "Couldn't make a code. Try again."));
+    }
+  }
+
+  document.getElementById("saveBtn").addEventListener("click", function () {
+    showCodes("Saved. Use either code to come back to this planner.", serialize(state));
+  });
+
+  /* ---------- finish week ---------- */
+  var dlg = document.getElementById("finishDlg");
+  document.getElementById("finishBtn").addEventListener("click", function () {
+    var w = weekStats();
+    if (!w.filled) { alert("Add at least one task before finishing the week."); return; }
+    document.getElementById("finishInfo").textContent =
+      "Score: " + w.done + " of " + w.filled + " done, " + w.pct + "% (grade " + gradeFor(w.pct) + ").";
+    dlg.showModal();
+  });
+  dlg.addEventListener("click", function (e) {
+    var mode = e.target && e.target.getAttribute && e.target.getAttribute("data-mode");
+    if (!mode) return;
+    dlg.close();
+    if (mode !== "cancel") finishWeek(mode);
+  });
+  function finishWeek(mode) {
+    var w = weekStats(), n = state.history.length + 1, finished = serialize(state);
+    state.history.push({ s: fmtDate(state.start), p: w.pct });
+    state.start = addDays(state.start, 7);
+    state.rows.forEach(function (row) {
+      for (var d = 0; d < DAYS; d++) {
+        if (mode === "fresh") row.cells[d] = [newTask()];
+        else row.cells[d].forEach(function (t) { t.c = false; });
+      }
+    });
+    syncInputs(); renderBoard(); renderHistory();
+    showCodes("Week " + n + " finished: " + w.pct + "% (" + gradeFor(w.pct) + "). Here is your code for the new week.", serialize(state), finished);
+  }
+
+  /* ---------- load ---------- */
+  document.getElementById("loadBtn").addEventListener("click", doLoad);
+  document.getElementById("loadInput").addEventListener("keydown", function (e) { if (e.key === "Enter") doLoad(); });
+  async function doLoad() {
+    var msg = document.getElementById("loadMsg");
+    var code = document.getElementById("loadInput").value.replace(/\s/g, "");
+    msg.className = "err";
+    if (!code) { msg.textContent = "Type your code first."; return; }
+    try {
+      var payload;
+      if (/^\d{6}$/.test(code)) {
+        try { payload = localStorage.getItem(shortKey(code)); } catch (e) { payload = null; }
+        if (!payload) { msg.textContent = "No planner found for that short code in this browser."; return; }
+      } else {
+        payload = await fromCode(code);
+      }
+      state = deserialize(payload);
+      syncInputs(); renderBoard(); renderHistory();
+      msg.className = "msg"; msg.textContent = "Planner loaded.";
+    } catch (e) {
+      msg.textContent = "That code didn't work. Check that every character was copied.";
+    }
+  }
+
+  /* ---------- plan picker ---------- */
+  var plansEl = document.getElementById("plans");
+  var appEl = document.getElementById("plannerApp");
+  var badgeEl = document.getElementById("planBadge");
+  function enterPlanner(name) {
+    plansEl.hidden = true;
+    appEl.hidden = false;
+    badgeEl.textContent = name + " plan · change";
+    boardEl.querySelectorAll("textarea").forEach(autosize);
+    window.scrollTo(0, 0);
+    if (!helpShown) { helpShown = true; helpDlg.showModal(); }
+  }
+  var helpDlg = document.getElementById("helpDlg"), helpShown = false;
+  document.getElementById("helpBtn").addEventListener("click", function () { helpDlg.showModal(); });
+  document.getElementById("helpClose").addEventListener("click", function () { helpDlg.close(); });
+  plansEl.querySelectorAll("[data-plan]").forEach(function (b) {
+    b.addEventListener("click", function () { enterPlanner(b.getAttribute("data-plan")); });
+  });
+  badgeEl.addEventListener("click", function () {
+    appEl.hidden = true;
+    plansEl.hidden = false;
+    window.scrollTo(0, 0);
+  });
+
+  syncInputs();
+  renderBoard();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
